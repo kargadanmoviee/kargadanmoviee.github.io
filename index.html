@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>اتاقِ فراموش‌شده</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700&display=swap');
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #0a0a12;
+    font-family: 'Vazirmatn', sans-serif;
+    cursor: crosshair;
+    user-select: none;
+  }
+
+  canvas {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* لایه‌ی نویز */
+  #noise {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.06;
+    z-index: 20;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    animation: noiseShift 0.35s steps(3) infinite;
+  }
+
+  @keyframes noiseShift {
+    0% { transform: translate(0, 0); }
+    33% { transform: translate(-4px, 3px); }
+    66% { transform: translate(3px, -4px); }
+    100% { transform: translate(0, 0); }
+  }
+
+  /* اسکن‌لاین */
+  #scanlines {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 21;
+    background: repeating-linear-gradient(
+      to bottom,
+      transparent 0px,
+      transparent 2px,
+      rgba(0, 0, 0, 0.18) 3px,
+      rgba(0, 0, 0, 0.18) 4px
+    );
+    mix-blend-mode: multiply;
+  }
+
+  /* ویگنتی */
+  #vignette {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 19;
+    background: radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.85) 100%);
+  }
+
+  /* متن‌های شناور */
+  .ghost-text {
+    position: fixed;
+    z-index: 15;
+    color: rgba(180, 220, 255, 0.0);
+    font-size: 14px;
+    pointer-events: none;
+    white-space: nowrap;
+    animation: ghostFloat linear forwards;
+    text-shadow: 0 0 8px rgba(120, 200, 255, 0.7);
+    font-weight: 700;
+  }
+
+  @keyframes ghostFloat {
+    0% { opacity: 0; transform: translateY(0) scale(1); }
+    20% { opacity: 0.9; }
+    80% { opacity: 0.6; }
+    100% { opacity: 0; transform: translateY(-180px) scale(1.4); }
+  }
+
+  /* پیام مرکزی */
+  #centerMsg {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 25;
+    color: #cfe8ff;
+    font-size: clamp(16px, 3vw, 28px);
+    text-align: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 1s ease;
+    text-shadow: 0 0 20px rgba(120, 200, 255, 0.9), 0 0 60px rgba(80, 150, 255, 0.5);
+    line-height: 2;
+    letter-spacing: 1px;
+    max-width: 90vw;
+  }
+
+  #centerMsg.show {
+    opacity: 1;
+    animation: pulseMsg 3s ease-in-out infinite;
+  }
+
+  @keyframes pulseMsg {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); }
+    50% { transform: translate(-50%, -50%) scale(1.03); }
+  }
+
+  /* کرسر سفارشی */
+  #cursor {
+    position: fixed;
+    width: 24px;
+    height: 24px;
+    border: 1.5px solid rgba(150, 210, 255, 0.8);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 30;
+    transform: translate(-50%, -50%);
+    transition: width 0.2s, height 0.2s, border-color 0.2s;
+    mix-blend-mode: screen;
+    box-shadow: 0 0 14px rgba(120, 200, 255, 0.6);
+  }
+
+  #cursorCore {
+    position: fixed;
+    width: 4px;
+    height: 4px;
+    background: #bfe4ff;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 30;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 12px #8ecbff, 0 0 30px #4a90ff;
+  }
+
+  /* شمارنده */
+  #counter {
+    position: fixed;
+    bottom: 18px;
+    left: 18px;
+    z-index: 25;
+    color: rgba(140, 190, 240, 0.5);
+    font-size: 12px;
+    letter-spacing: 2px;
+    font-family: monospace;
+    pointer-events: none;
+    direction: ltr;
+  }
+
+  #hint {
+    position: fixed;
+    bottom: 18px;
+    right: 18px;
+    z-index: 25;
+    color: rgba(140, 190, 240, 0.35);
+    font-size: 12px;
+    pointer-events: none;
+    letter-spacing: 1px;
+  }
+
+  /* لحظه‌ی گلیچ کل صفحه */
+  .glitch-shake {
+    animation: glitchShake 0.4s ease;
+  }
+
+  @keyframes glitchShake {
+    0% { transform: translate(0,0); filter: hue-rotate(0deg); }
+    20% { transform: translate(-8px, 4px); filter: hue-rotate(90deg) saturate(3); }
+    40% { transform: translate(6px, -5px); filter: hue-rotate(180deg); }
+    60% { transform: translate(-4px, 3px); filter: hue-rotate(270deg) invert(0.2); }
+    80% { transform: translate(5px, -2px); filter: hue-rotate(360deg); }
+    100% { transform: translate(0,0); filter: hue-rotate(0deg); }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="bg"></canvas>
+<div id="noise"></div>
+<div id="scanlines"></div>
+<div id="vignette"></div>
+
+<div id="centerMsg"></div>
+
+<div id="cursor"></div>
+<div id="cursorCore"></div>
+
+<div id="counter">PARTICLES: <span id="pCount">0</span> | DEPTH: <span id="depthVal">0</span></div>
+<div id="hint">حرکت کن · کلیک کن · صبر کن</div>
+
+<script>
+/* ============================================================
+   اتاقِ فراموش‌شده — یک صفحه‌ی عجیب
+   ============================================================ */
+
+const canvas = document.getElementById('bg');
+const ctx = canvas.getContext('2d');
+const centerMsg = document.getElementById('centerMsg');
+const cursor = document.getElementById('cursor');
+const cursorCore = document.getElementById('cursorCore');
+const pCountEl = document.getElementById('pCount');
+const depthValEl = document.getElementById('depthVal');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth * devicePixelRatio;
+  H = canvas.height = window.innerHeight * devicePixelRatio;
+  canvas.style.width = window.innerWidth + 'px';
+  canvas.style.height = window.innerHeight + 'px';
+}
+resize();
+window.addEventListener('resize', resize);
+
+/* ---------------- موس ---------------- */
+const mouse = { x: window.innerWidth / 2, y: window.innerHeight / 2, px: 0, py: 0 };
+
+document.addEventListener('mousemove', (e) => {
+  mouse.x = e.clientX;
+  mouse.y = e.clientY;
+  cursor.style.left = e.clientX + 'px';
+  cursor.style.top = e.clientY + 'px';
+  cursorCore.style.left = e.clientX + 'px';
+  cursorCore.style.top = e.clientY + 'px';
+
+  // تغییر عمق با سرعت حرکت
+  const v = Math.hypot(e.clientX - mouse.px, e.clientY - mouse.py);
+  mouse.px = e.clientX;
+  mouse.py = e.clientY;
+  depth = Math.min(1, depth + v * 0.0004);
+  depthValEl.textContent = Math.round(depth * 100);
+});
+
+/* ---------------- حالت‌ها ---------------- */
+const PHRASES = [
+  'آیا اینجا را قبلاً دیده‌ای؟',
+  'صدای پاهایت را می‌شنوی؟',
+  'آن سایه... حرکت کرد',
+  'چیزی پشت سرت است',
+  'فراموش نکن که فراموش شدی',
+  'این اتاق نفس می‌کشد',
+  'آینه دروغ نمی‌گوید',
+  'شمارش معکوس شروع شد',
+  'در را نبند',
+  'تو تنها نیستی',
+  'همه چیز تکرار می‌شود',
+  'به عقب نگاه نکن',
+];
+
+const WHISPERS = [
+  '...', 'psst', 'آنجا', 'برگرد', 'گوش کن', 'نه', 'باز هم', '؟',
+  'خیلی نزدیک', 'سرد', 'تاریک', 'من', 'تو', 'ما', 'هیچ‌کس'
+];
+
+/* ---------------- سیستم ذرات ---------------- */
+const DPR = devicePixelRatio || 1;
+const particles = [];
+const MAX_PARTICLES = 420;
+let depth = 0; // 0..1
+
+class Particle {
+  constructor() {
+    this.reset(true);
+  }
+  reset(initial = false) {
+    this.x = Math.random() * W;
+    this.y = Math.random() * H;
+    this.z = Math.random() * 2 + 0.2; // عمق
+    this.baseSpeed = 0.2 + Math.random() * 0.8;
+    this.r = (Math.random() * 1.6 + 0.4);
+    this.hue = 190 + Math.random() * 60;
+    this.alpha = 0.15 + Math.random() * 0.5;
+    this.phase = Math.random() * Math.PI * 2;
+    this.wobble = Math.random() * 0.02 + 0.005;
+    this.initial = initial;
+  }
+  update() {
+    this.phase += this.wobble;
+    const speed = this.baseSpeed * (1 + depth * 3);
+    // جذب به سمت موس در عمق بالا
+    if (depth > 0.35) {
+      const mx = mouse.x * DPR;
+      const my = mouse.y * DPR;
+      const dx = mx - this.x;
+      const dy = my - this.y;
+      const d2 = dx * dx + dy * dy;
+      const force = (depth - 0.35) * 0.00004 * this.z;
+      this.x += dx * force;
+      this.y += dy * force;
+    }
+    this.y -= speed; // حرکت به بالا
+    this.x += Math.sin(this.phase) * 0.4 * this.z;
+    if (this.y < -20 || this.y > H + 20 || this.x < -20 || this.x > W + 20) {
+      this.reset();
+    }
+  }
+  draw(c) {
+    const size = this.r * this.z * (1 + depth * 0.5);
+    const glow = c.createRadialGradient(this.x, this.y, 0, this.x, this.y, size * 6);
+    glow.addColorStop(0, `hsla(${this.hue}, 100%, 75%, ${this.alpha})`);
+    glow.addColorStop(1, `hsla(${this.hue}, 100%, 50%, 0)`);
+    c.fillStyle = glow;
+    c.beginPath();
+    c.arc(this.x, this.y, size * 6, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = `hsla(${this.hue}, 100%, 90%, ${this.alpha + 0.2})`;
+    c.beginPath();
+    c.arc(this.x, this.y, size, 0, Math.PI * 2);
+    c.fill();
+  }
+}
+
+for (let i = 0; i < MAX_PARTICLES; i++) {
+  particles.push(new Particle());
+}
+
+/* ---------------- رشته‌های عصبی (اتصالات) ---------------- */
+function drawConnections(c) {
+  c.lineWidth = 0.5;
+  for (let i = 0; i < particles.length; i += 2) {
+    const a = particles[i];
+    for (let j = i + 1; j < i + 12 && j < particles.length; j++) {
+      const b = particles[j];
+      const dx = a.x - b.x;
+      const dy = a.y - b.y;
+      const dist = dx * dx + dy * dy;
+      const maxDist = (120 * DPR) ** 2;
+      if (dist < maxDist) {
+        const t = 1 - dist / maxDist;
+        c.strokeStyle = `hsla(${(a.hue + b.hue) / 2}, 100%, 70%, ${t * 0.12 * (1 + depth)})`;
+        c.beginPath();
+        c.moveTo(a.x, a.y);
+        c.lineTo(b.x, b.y);
+        c.stroke();
+      }
+    }
+  }
+}
+
+/* ---------------- حلقه‌ی اصلی ---------------- */
+let t = 0;
+function animate() {
+  t += 0.01;
+  // کاهش تدریجی عمق
+  depth *= 0.985;
+
+  // پس‌زمینه با دنباله
+  ctx.fillStyle = 'rgba(8, 8, 18, 0.28)';
+  ctx.fillRect(0, 0, W, H);
+
+  // هاله‌ی مرکزی متحرک
+  const cx = W / 2 + Math.sin(t) * W * 0.1;
+  const cy = H / 2 + Math.cos(t * 0.7) * H * 0.1;
+  const halo = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(W, H) * 0.5);
+  const hue = (t * 20) % 360;
+  halo.addColorStop(0, `hsla(${200 + Math.sin(t) * 40}, 80%, 30%, 0.08)`);
+  halo.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = halo;
+  ctx.fillRect(0, 0, W, H);
+
+  // اتصالات
+  drawConnections(ctx);
+
+  // ذرات
+  for (const p of particles) {
+    p.update();
+    p.draw(ctx);
+  }
+
+  // اثر موج از موس
+  if (depth > 0.1) {
+    const mx = mouse.x * DPR;
+    const my = mouse.y * DPR;
+    for (let k = 0; k < 3; k++) {
+      const rr = ((t * 80 + k * 60) % 300) * (1 + depth);
+      ctx.strokeStyle = `hsla(${200 + k * 40}, 100%, 75%, ${(1 - rr / 300) * depth * 0.25})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(mx, my, rr, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+
+  pCountEl.textContent = particles.length;
+
+  requestAnimationFrame(animate);
+}
+animate();
+
+/* ---------------- متن‌های شبح ---------------- */
+function spawnGhostText(text, x, y, color = null) {
+  const el = document.createElement('div');
+  el.className = 'ghost-text';
+  el.textContent = text;
+  el.style.left = x + 'px';
+  el.style.top = y + 'px';
+  const c = color || `hsl(${190 + Math.random() * 60}, 100%, 80%)`;
+  el.style.color = c;
+  el.style.animationDuration = (2 + Math.random() * 2) + 's';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 5000);
+}
+
+/* ---------------- کلیک: انفجار ---------------- */
+document.addEventListener('click', (e) => {
+  const x = e.clientX;
+  const y = e.clientY;
+
+  // انفجار ذرات از نقطه‌ی کلیک
+  for (let i = 0; i < 60; i++) {
+    const el = document.createElement('div');
+    el.className = 'ghost-text';
+    el.textContent = ['✦','·','✧','⋆','°'][Math.floor(Math.random()*5)];
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    el.style.color = `hsl(${190 + Math.random() * 80}, 100%, 85%)`;
+    el.style.fontSize = (8 + Math.random() * 20) + 'px';
+    el.style.animationDuration = (0.8 + Math.random() * 1.2) + 's';
+    el.style.textShadow = '0 0 20px currentColor';
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 40 + Math.random() * 160;
+    el.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${Math.cos(angle)*dist}px, ${Math.sin(angle)*dist}px) scale(0)`, opacity: 0 }
+    ], { duration: 900 + Math.random()*600, easing: 'cubic-bezier(0.2,0.8,0.3,1)' });
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 1600);
+  }
+
+  // لرزش گلیچی
+  document.body.classList.remove('glitch-shake');
+  void document.body.offsetWidth;
+  document.body.classList.add('glitch-shake');
+
+  depth = Math.min(1, depth + 0.5);
+
+  // پیام تصادفی
+  if (Math.random() < 0.6) {
+    showMessage(PHRASES[Math.floor(Math.random() * PHRASES.length)], 1800);
+  }
+
+  // نجوا
+  const w = WHISPERS[Math.floor(Math.random() * WHISPERS.length)];
+  spawnGhostText(w, x + (Math.random()-0.5)*100, y + (Math.random()-0.5)*100);
+});
+
+/* ---------------- نمایش پیام مرکزی ---------------- */
+let msgTimer = null;
+function showMessage(text, duration = 2500) {
+  centerMsg.textContent = text;
+  centerMsg.classList.add('show');
+  clearTimeout(msgTimer);
+  msgTimer = setTimeout(() => {
+    centerMsg.classList.remove('show');
+  }, duration);
+}
+
+/* ---------------- رفتارهای خودکار عجیب ---------------- */
+const autoPhrases = [
+  '...', '؟', 'گوش کن', 'حالا', 'باز هم', 'نه', 'آنجا', 'پشت سرت',
+  'همه چیز تکرار می‌شود', 'در را باز نکن', 'اینجا آشناست'
+];
+
+setInterval(() => {
+  if (Math.random() < 0.35) {
+    const text = autoPhrases[Math.floor(Math.random() * autoPhrases.length)];
+    const x = Math.random() * window.innerWidth;
+    const y = window.innerHeight * 0.6 + Math.random() * window.innerHeight * 0.3;
+    spawnGhostText(text, x, y);
+  }
+}, 1400);
+
+// پیام‌های مرکزی گاه‌به‌گاه
+const bigMessages = [
+  'به اتاقِ فراموش‌شده خوش آمدی',
+  'آیا اینجا را قبلاً دیده‌ای؟',
+  'این صفحه نفس می‌کشد',
+  'چیزی در حال مشاهده‌ی توست',
+  'بازگشت ممکن نیست',
+  'ساعت ۳:۳۳ بامداد',
+];
+let msgIndex = 0;
+setInterval(() => {
+  if (Math.random() < 0.25 && !centerMsg.classList.contains('show')) {
+    showMessage(bigMessages[msgIndex % bigMessages.length], 3000);
+    msgIndex++;
+  }
+}, 5000);
+
+// شروع
+setTimeout(() => showMessage('به اتاقِ فراموش‌شده خوش آمدی', 3500), 1200);
+
+/* ---------------- افکت‌های اضافه ---------------- */
+
+// ذرات شناور خیلی ریز (گرد و غبار)
+const dustCanvas = document.createElement('canvas');
+dustCanvas.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:10;opacity:0.5';
+document.body.appendChild(dustCanvas);
+const dctx = dustCanvas.getContext('2d');
+let dustParticles = [];
+
+function initDust() {
+  dustCanvas.width = window.innerWidth * DPR;
+  dustCanvas.height = window.innerHeight * DPR;
+  dustCanvas.style.width = window.innerWidth + 'px';
+  dustCanvas.style.height = window.innerHeight + 'px';
+  dustParticles = [];
+  for (let i = 0; i < 120; i++) {
+    dustParticles.push({
+      x: Math.random() * dustCanvas.width,
+      y: Math.random() * dustCanvas.height,
+      r: Math.random() * 1.2 + 0.2,
+      vx: (Math.random() - 0.5) * 0.3,
+      vy: (Math.random() - 0.5) * 0.3,
+      a: Math.random() * 0.3 + 0.05,
+    });
+  }
+}
+initDust();
+window.addEventListener('resize', initDust);
+
+function drawDust() {
+  dctx.clearRect(0, 0, dustCanvas.width, dustCanvas.height);
+  for (const p of dustParticles) {
+    p.x += p.vx;
+    p.y += p.vy;
+    if (p.x < 0) p.x = dustCanvas.width;
+    if (p.x > dustCanvas.width) p.x = 0;
+    if (p.y < 0) p.y = dustCanvas.height;
+    if (p.y > dustCanvas.height) p.y = 0;
+    dctx.fillStyle = `rgba(180, 220, 255, ${p.a})`;
+    dctx.beginPath();
+    dctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    dctx.fill();
+  }
+  requestAnimationFrame(drawDust);
+}
+drawDust();
+
+/* ---------------- کلیدهای مخفی ---------------- */
+let konami = [];
+const konamiCode = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
+document.addEventListener('keydown', (e) => {
+  konami.push(e.key);
+  konami = konami.slice(-konamiCode.length);
+  if (konami.join(',') === konamiCode.join(',')) {
+    document.body.style.filter = 'invert(1) hue-rotate(180deg)';
+    showMessage('حقیقت پشت آینه', 5000);
+    setTimeout(() => { document.body.style.filter = ''; }, 3000);
+  }
+});
+
+/* ---------------- تغییر رنگ تدریجی کرسر ---------------- */
+let hueT = 0;
+setInterval(() => {
+  hueT = (hueT + 3) % 360;
+  cursor.style.borderColor = `hsla(${190 + Math.sin(hueT * 0.02) * 60}, 100%, 75%, 0.9)`;
+  cursorCore.style.boxShadow = `0 0 14px hsl(${190 + Math.sin(hueT * 0.02) * 60}, 100%, 70%), 0 0 40px hsl(${190 + Math.sin(hueT * 0.02) * 60}, 100%, 50%)`;
+}, 50);
+
+/* ---------------- فراموش کردن موس (تلاش برای مخفی کردن) ---------------- */
+let mouseIdle = 0;
+setInterval(() => {
+  mouseIdle++;
+  if (mouseIdle > 60) {
+    cursor.style.width = '12px';
+    cursor.style.height = '12px';
+    if (Math.random() < 0.02) {
+      spawnGhostText('کجایی؟', mouse.x + 20, mouse.y - 20);
+    }
+  }
+}, 100);
+document.addEventListener('mousemove', () => {
+  mouseIdle = 0;
+  cursor.style.width = '24px';
+  cursor.style.height = '24px';
+});
+
+/* ---------------- افکت ریپل روی موس ---------------- */
+let lastRipple = 0;
+document.addEventListener('mousemove', () => {
+  const now = Date.now();
+  if (now - lastRipple > 600 && depth > 0.2) {
+    lastRipple = now;
+    const mx = mouse.x;
+    const my = mouse.y;
+    const el = document.createElement('div');
+    el.style.cssText = `
+      position:fixed; left:${mx}px; top:${my}px; width:10px; height:10px;
+      border:1px solid hsl(${200 + Math.random()*80},100%,75%);
+      border-radius:50%; pointer-events:none; z-index:22;
+      transform:translate(-50%,-50%); opacity:0.7;
+    `;
+    document.body.appendChild(el);
+    el.animate([
+      { transform: 'translate(-50%,-50%) scale(1)', opacity: 0.7 },
+      { transform: 'translate(-50%,-50%) scale(8)', opacity: 0 }
+    ], { duration: 1200, easing: 'ease-out' });
+    setTimeout(() => el.remove(), 1300);
+  }
+});
+</script>
+</body>
+</html>
